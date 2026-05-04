@@ -1,27 +1,17 @@
-# Agentic-CV-Screener
+Agentic CV Screener
 
-A high-performance, asynchronous AI recruitment system that automates CV screening using a multi-agent architecture. This project transforms raw PDF resumes into structured candidate profiles and evaluates them against specific job descriptions (JD).
 
-## Key Features
-- **Multi-Agent Architecture**: Uses a two-stage process combining `smolagents` for reasoning and `Pydantic-AI` for structured data validation.
-- **Agentic Reasoning**: The system doesn't just match keywords; it analyzes professional experience, education, and skills semantically.
-- **Python-Powered Tools**: Integrated custom tools for precise calculations (e.g., total years of experience) to prevent LLM "hallucinations" in math.
-- **Infrastructure Resilience**: Implemented **Exponential Backoff** logic to handle API rate limits and 503 Service Unavailable errors gracefully.
-- **Provider Agnostic**: Built on top of **LiteLLM**, allowing seamless switching between OpenAI (GPT-4o) and Google Gemini models.
+A high-performance ATS agent built with FastAPI and smolagents. This tool automates CV screening by converting PDFs to Markdown and using agentic reasoning to validate candidates against job descriptions.
 
-## ️ Technical Stack
-- **Backend**: FastAPI (Python 3.14+)
-- **Orchestration**: `smolagents` (HuggingFace) & `Pydantic-AI`
-- **LLM Gateway**: `LiteLLM`
-- **Validation**: `Pydantic v2`
-- **PDF Processing**: `PyMuPDF` / `Marker`
+Key Updates (v2.0)
+•	Single-Agent Architecture: Migrated from a multi-agent setup to a unified CodeAgent for better state management and reliability.
+•	Token Optimization: Significant reduction in token consumption through refined prompting and streamlined logic.
+•	Tool-Use Logic: The agent now autonomously uses specialized Python tools (calculate_experience, skill_match_validator) for 100% mathematical accuracy in experience calculation.
+•	Llama 3.3 Powered: Optimized for llama-3.3-70b-versatile via Groq for sub-second reasoning.
 
-## Project Structure
-```text
-├── agents/          # AI Agent logic and custom tools
-├── api/             # FastAPI routes and endpoint definitions
-├── models/          # Pydantic schemas and data contracts
-├── services/        # PDF parsing and core business logic
-├── utils/           # Logging and resilience utilities
-├── main.py          # Application entry point
-└── requirements.txt # Project dependencies
+
+Tech Stack
+•	Framework: FastAPI
+•	Orchestration: smolagents by Hugging Face
+•	Parsing: PyMuPDF4LLM (Markdown-based extraction)
+•	Inference: Groq (Llama 3.3)
