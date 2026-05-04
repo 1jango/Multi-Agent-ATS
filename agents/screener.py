@@ -1,56 +1,73 @@
 import os
 import asyncio
+import json
 from dotenv import load_dotenv
-from smolagents import CodeAgent, LiteLLMModel
+from smolagents import LiteLLMModel, CodeAgent
 from models.schemas import Candidate
 from agents.tools import calculate_experience, skill_match_validator
-from pydantic_ai import Agent as PydanticAgent
-from litellm import ServiceUnavailableError
 from utils.logger import logger
 
 load_dotenv()
 
+
 class ScreeningAgent:
     def __init__(self):
-        self.model = LiteLLMModel(
-            model_id="gemini/gemini-3-flash-preview",
-            api_key=os.getenv("GEMINI_API_KEY")
-        )
-
-        self.agent = CodeAgent(
-            tools=[calculate_experience, skill_match_validator],
-            model=self.model,
-            add_base_tools=True
-        )
+        self.model_configs = [
+            {"id": "groq/llama-3.3-70b-versatile", "api_key": os.getenv("GROQ_API_KEY")},
+            ]
 
     async def screen(self, cv_text: str, jd_text: str) -> Candidate:
         prompt = f"""
-        You are an expert HR Architect. Match this CV to the JD.
-        JOB DESCRIPTION: {jd_text}
-        CANDIDATE CV (Markdown): {cv_text}
-        ... (rest of your prompt) ...
+        Analyze the CV and JD provided below. 
+        1. Use 'calculate_experience' to get the exact total years of experience.
+        2. Use 'skill_match_validator' to get the match score.
+        3. Construct the final response using THESE EXACT VALUES.
+
+        JD: {jd_text}
+        CV: {cv_text[:3000]}
+
+        Final task: Return ONLY a JSON object:
+        {{
+            "name": "Full Name",
+            "email": "Email Address",
+            "years_of_experience": [VALUE FROM TOOL],
+            "primary_skills": [LIST],
+            "match_score": [SCORE FROM TOOL],
+            "reasoning": "1-sentence summary"
+        }}
         """
 
-        max_retries = 3
-        delay = 2
+        for config in self.model_configs:
+            if not config["api_key"]:
+                continue
 
-        for attempt in range(max_retries):
             try:
+                logger.info(f"Attempting screening with model: {config['id']}")
 
-                result = self.agent.run(prompt)
+                current_model = LiteLLMModel(
+                    model_id=config["id"],
+                    api_key=config["api_key"]
+                )
 
-                validator = PydanticAgent('google-gla:gemini-3-flash-preview')
-                validated_data = await validator.run(f"Transform it into a structured JSON: {result}",
-                                                     result_type = Candidate)
+                agent = CodeAgent(
+                    tools=[calculate_experience, skill_match_validator],
+                    model=current_model,
+                   max_steps=3
+                )
 
+                raw_result = agent.run(prompt)
 
-                return validated_data.data
-
-            except ServiceUnavailableError:
-                if attempt < max_retries - 1:
-                    logger.warning(f"Gemini busy, retrying in {delay}s... (Attempt {attempt + 1})")
-                    await asyncio.sleep(delay)
-                    delay *= 2
+                if isinstance(raw_result, dict):
+                    json_str = json.dumps(raw_result)
                 else:
-                    logger.error("Gemini service unavailable after max retries.")
-                    raise
+                    clean_str = str(raw_result).replace("```json", "").replace("```", "").strip()
+                    json_str = clean_str.replace("'", '"')
+
+                return Candidate.model_validate_json(json_str)
+
+            except Exception as e:
+                logger.warning(f"Model {config['id']} failed. Error: {str(e)}")
+                await asyncio.sleep(1)
+                continue
+
+        raise RuntimeError("All AI models failed or are unavailable.")
